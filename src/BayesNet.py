@@ -41,7 +41,38 @@ class BayesNet:
         self._cpts     = [ CPT(conditional, self._domainFromVar(conditional))
                            for conditional in conditionals ]
 
+    # insts is a list of lists each of which contains a setting for each of
+    # variables in this BayesNet
+    def learn(self, insts):
+
+        # quick function for getting relevant indices from instance
+        def instSlice(indices, inst):
+            return [ inst[i] for i in indices ]
+
+        for inst in insts:
+            assert len(inst) == len(self._vars), (
+                "Instance " + str(inst) + " should be of length " +
+                str(len(self.vars)))
+
+            for i,v in enumerate(inst):
+                assert v >= 0 and v < self._domains[i], (
+                    "Value " + str(v) + " is not within correct domain!")
+
+        # Get relevant indicies for each CPT
+        cptSlicers = [ self._indFromVar(cpt.getVars()) for cpt in self._cpts ]
+
+        # Build a list of instances for each CPT to learn by slicing out
+        # the correct incides from each training instance
+        learningSets = [[ instSlice(cslice, inst) for inst in insts ]
+                        for cslice in cptSlicers ]
+
+        [ cpt.learn(x) for (cpt, x) in zip(self._cpts, learningSets) ]
+
     def showJoint(self):
-        lval = "P(" + ",".join(self._vars) + "\n"
-        rval = "\t" + "".join([cpt.showConditional() for cpt in self._cpts])
+        lval = "P(" + ",".join(self._vars) + ")"
+        rval = "".join([cpt.getConditional() for cpt in self._cpts])
         print(lval + " = " +rval)
+
+    def showAllCPTs(self):
+        for cpt in self._cpts:
+            cpt.showProbTable()

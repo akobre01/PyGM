@@ -97,17 +97,25 @@ class CPT:
 
         return array(rows).transpose()
 
+    def getVars(self):
+        return self._vars
+
     # Return a visual representation of the conditional disribution
     # represented by this CPT
-    def showConditional(self):
+    def getConditional(self):
         parents = ""
         if len(self._vars) > 1:
             parents = "|" + ",".join([str(x) for x in self._vars[1:]])
-        print("P(" + self._vars[0] + parents + ")")
+        return "P(" + self._vars[0] + parents + ")"
+
+    def showConditional(self):
+        print(self.getConditional())
 
     def showProbTable(self):
         settings = self._enumerateSettings(self._domains)
-        print(" ".join([str(x) for x in self._vars]))
+        print(" ".join([str(x) for x in self._vars]) +
+              " " + self.getConditional())
+
         for i,e in enumerate(settings):
             setting = [int(x) for x in e.tolist()]
             setting.append(self._probs[i])
