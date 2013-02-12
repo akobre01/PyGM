@@ -35,8 +35,8 @@ class CPT:
         self._domains = domains
         self._probs   = np.zeros(np.product(self._domains))
         self._vars    = variables
-        self._vars2ind = dict([ (pair[1], pair[0])
-                                for pair in enumerate(variables) ])
+        self._vars2inds = dict([ (pair[1], pair[0])
+                                 for pair in enumerate(variables) ])
 
     # make sure that a particular setting of the variables checks out
     def _assertSetting(self, setting, domain):
@@ -55,7 +55,7 @@ class CPT:
 
     # return the probability of a particular setting
     def probs(self, setting):
-        return self.probs[self._setting2Index(setting)]
+        return self._probs[self._setting2Index(setting)]
 
     # examples is a list of settings of the parameter (each setting is itself
     # a list.  Fill in the probability table in the internal CPT
@@ -68,6 +68,28 @@ class CPT:
             self._probs[self._setting2Index(ex)] += 1
 
         self._normalizeCPT()
+
+    # return a CPT that represents the corrent CPT marginalized over the
+    # variables passed in.  In other words, eliminate the variables that
+    # ARE NOT passed in.  If the caller DOES NOT pass in the child variable,
+    # the result will be a CPT that has one entry which is probability 1
+    def marginalize(self, toKeep):
+        assert set(toKeep).issubset(self._vars), (
+            "Some variables passed in do not appear in this conditional!")
+
+        keptInds = []
+        [ keptInds.append(self._vars2inds[v]) for v in toKeep ]
+        sKept = sorted(keptInds)
+        cpt = CPT([ self._vars[ind]    for ind in sKept ],
+                  [ self._domains[ind] for ind in sKept ])
+
+        allSettings = self._enumerateSettings(self._domains)
+        for setting in allSettings:
+            adjusted = [ setting[ind] for ind in sKept ]
+            cpt._probs[cpt._setting2Index(adjusted)] += self.probs(setting)
+
+        cpt._normalizeCPT()
+        return cpt
 
     def _normalizeArray(self, a):
         return a / float(sum(a))
