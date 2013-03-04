@@ -16,7 +16,12 @@ class Factor:
     def _assertTuple(self,t):
         assert type(t) == 'tuple', "must pass in a tuple"
 
-    def _assertCorrectDimensions(self):
+    def _assertValWithinDomain(self, var, val):
+        self._assertVarExists(var)
+        assert self._domains[var] > val, (
+            str(val) + " is outside the valid domain of var: " + str(var))
+
+    def _assertCorrectDimensionality(self):
         for var, ind in self._vars2inds.iteritems():
             assert self._factor.shape[ind] == self._domains[var], (
                 "Incorrect dimensionality")
@@ -27,7 +32,7 @@ class Factor:
                       self._domains.values(),
                       np.copy(self._factor))
 
-    # swap dimensions SAFELY keeping all interal info correct (aka vars,
+    # swap dimensions SAFELY keeping all internal state correct (aka vars,
     # vars2inds, and factor itself
     # THIS NEEDS SOME ASSERTIONS
     def _safeDimSwap(self, frm, to):
@@ -38,6 +43,8 @@ class Factor:
         self._vars2inds.update({ frmVar : to, toVar : frm})
         self._domains.update({ frmVar : toDom, toVar : frmDom })
         np.swapaxes(self._factor, frm, to)
+        self._assertCorrectDimensionality()
+        self._assertOrdering()
 
     # safely add a dimension to the factor keeping track of all internal state
     # THIS NEEDS SOME ASSERTIONS
@@ -48,6 +55,8 @@ class Factor:
         for v,i in self._vars2inds.iteritems():
             if i>= ind:
                 self._vars2inds.update({v : i + 1})
+        self._assertCorrectDimensions()
+        self._assertOrdering()
 
     # After eliminating a var, reorganize indicies correctly by
     # subtracting 1 from indicies that are greater
@@ -62,9 +71,14 @@ class Factor:
         self._vars      = variables
         self._domains   = {}
         self._vars2inds = {}
+        self._assigned  = {}
         for i,v in enumerate(variables):
             self._vars2inds[v] = i
             self._domains[v] = domains[i]
+
+    # get current ordering of the variables
+    def varOrdering(self):
+        return self._vars
 
     # setting is a tuple; order matters!
     def set(self, setting, value):
@@ -77,10 +91,18 @@ class Factor:
         self._assertTuple(setting)
         return self._factor[setting]
 
+    # visual representation
+    def show(self):
+        assigned = []
+        for var, assignment in self._assigned.iteritems():
+            assigned.append(str(var) + " = " + str(assignment))
+        return "F(" + ",".join(self._vars + assigned) + ")"
+
     # factor multiply (right now too complex)
     # strategy: 1) get the tensors to be the same dimensions using expand_dims
     #           2) make sure that the dimension ordering is the same for both
     #           3) broadcast the multiplication
+    # NEED TO TEST BETTER AND ADD ASSERTIONS
     def multiply(self, newFactor):
         myFactorCopy  = self._copy()
         newFactorCopy = newFactor._copy()
@@ -96,18 +118,26 @@ class Factor:
         _newFactor =  myFactorCopy._factor * newFactorCopy._factor
         return Factor(newVars, list(_newFactor.shape), _newFactor)
 
-    # returns the order in which to specify factor settings
-    def settingOrder(self):
-        return self._vars
-
-    # in place? Or should I return a new one?
+    # observe a single variable; updates vars, vars2inds, domains and
+    # adds an entry to assignment
+    # NEEDS ASSERTIONS AND MORE CHECKING
     def observe(self, var, val):
-        newFactor = self._factor.swapaxes(0,self._vars2inds[var])
-        return newFactor
+        self._assertVarExists(var)
+        self._assertValWithinDomain(var,val)
+        dim = self._vars2inds.pop(var)
+        self._domains.pop(var)
+        self._vars.pop(dim)
+        self._assigned[var] = val
+        self._safeDimSwap(dim, 0)
+        self._factor = self._factor[val,:]
 
     # variable elimination
     def eliminate(self, var):
         if set([var]).issubset(set(self._vars)):
-            varInd = self._vars2inds[var]
+            varInd = self._vars2inds.pop(var)
+            self._domains.pop(var)
+            self._vars.pop(varInd)
             self._factor = np.sum(self._factor, varInd)
             self._resetIndicies(varInd)
+            self._assertCorrectDimensionality()
+            self._assertOrdering()
