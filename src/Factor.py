@@ -3,7 +3,7 @@ import numpy as np
 
 class Factor:
     """
-    Represents a general factor in any type of factor graph
+    Represents a general log factor in any type of factor graph
     """
     # make sure we have the ordering correct (this is CRUCIAL!)
     def _assertOrdering(self):
@@ -32,9 +32,14 @@ class Factor:
                       self._domains.values(),
                       np.copy(self._factor))
 
+    # sum variables in log space; make sure to pass in an ndarray (numpy)
+    # Also, summing is of the dimension dim
+    def _logSumExp(self, ndarray, dim):
+        m = np.max(ndarray)
+        return m + np.log(np.sum(np.exp(ndarray - m), dim))
+
     # swap dimensions SAFELY keeping all internal state correct (aka vars,
     # vars2inds, and factor itself
-    # THIS NEEDS SOME ASSERTIONS
     def _safeDimSwap(self, frm, to):
         frmVar, toVar = self._vars[frm], self._vars[to]
         frmDom, toDom = self._domains[frmVar], self._domains[toVar]
@@ -47,7 +52,6 @@ class Factor:
         self._assertOrdering()
 
     # safely add a dimension to the factor keeping track of all internal state
-    # THIS NEEDS SOME ASSERTIONS
     def _safeDimAdd(self, var, ind):
         self._factor = np.expand_dims(self._factor, ind)
         self._vars.insert(ind, var)
@@ -55,7 +59,7 @@ class Factor:
         for v,i in self._vars2inds.iteritems():
             if i>= ind:
                 self._vars2inds.update({v : i + 1})
-        self._assertCorrectDimensions()
+        self._assertCorrectDimensionality()
         self._assertOrdering()
 
     # After eliminating a var, reorganize indicies correctly by
@@ -65,6 +69,9 @@ class Factor:
             if ind > index:
                 self._vars2inds.update({var : ind - 1})
 
+    # It's a bit weird here that you pass in a list for domains and it gets
+    # converted to a dictionary...especially because variables is a dict
+    # ALSO MAKE SURE THAT factor THAT IS PASSED IN IS IN LOG-SPACE!
     def __init__(self, variables, domains, factor):
         # make some assertions here
         self._factor    = factor
@@ -75,6 +82,8 @@ class Factor:
         for i,v in enumerate(variables):
             self._vars2inds[v] = i
             self._domains[v] = domains[i]
+        self._assertOrdering()
+        self._assertCorrectDimensionality()
 
     # get current ordering of the variables
     def varOrdering(self):
@@ -98,12 +107,12 @@ class Factor:
             assigned.append(str(var) + " = " + str(assignment))
         return "F(" + ",".join(self._vars + assigned) + ")"
 
-    # factor multiply (right now too complex)
+    # log-factor add (factor multiply)
     # strategy: 1) get the tensors to be the same dimensions using expand_dims
     #           2) make sure that the dimension ordering is the same for both
     #           3) broadcast the multiplication
-    # NEED TO TEST BETTER AND ADD ASSERTIONS
-    def multiply(self, newFactor):
+    # (right now too complex)
+    def add(self, newFactor):
         myFactorCopy  = self._copy()
         newFactorCopy = newFactor._copy()
         newVars = list(set(myFactorCopy._vars).union(set(newFactorCopy._vars)))
@@ -115,29 +124,62 @@ class Factor:
                 else:
                     factor._safeDimAdd(var, ind)
 
-        _newFactor =  myFactorCopy._factor * newFactorCopy._factor
+        _newFactor =  myFactorCopy._factor + newFactorCopy._factor
         return Factor(newVars, list(_newFactor.shape), _newFactor)
 
     # observe a single variable; updates vars, vars2inds, domains and
     # adds an entry to assignment
     # NEEDS ASSERTIONS AND MORE CHECKING
     def observe(self, var, val):
-        self._assertVarExists(var)
-        self._assertValWithinDomain(var,val)
-        dim = self._vars2inds.pop(var)
-        self._domains.pop(var)
-        self._vars.pop(dim)
-        self._assigned[var] = val
-        self._safeDimSwap(dim, 0)
-        self._factor = self._factor[val,:]
+        newFactor = self._copy()
+        newFactor._assertVarExists(var)
+        newFactor._assertValWithinDomain(var,val)
+        dim = newFactor._vars2inds.pop(var)
+        newFactor._domains.pop(var)
+        newFactor._vars.pop(dim)
+        newFactor._assigned[var] = val
+        newFactor._safeDimSwap(dim, 0)
+        newFactor._factor = newFactor._factor[val,:]
+        return newFactor
 
-    # variable elimination
-    def eliminate(self, var):
-        if set([var]).issubset(set(self._vars)):
-            varInd = self._vars2inds.pop(var)
-            self._domains.pop(var)
-            self._vars.pop(varInd)
-            self._factor = np.sum(self._factor, varInd)
-            self._resetIndicies(varInd)
-            self._assertCorrectDimensionality()
-            self._assertOrdering()
+    # variable elimination; eliminates a single variable and does all
+    # necessary state checking;
+    # change this so that it works IN PLACE (impure) so it doesn't blow stack
+    def _eliminate(self, var):
+        newFactor = self._copy()
+        if set([var]).issubset(set(newFactor._vars)):
+            varInd = newFactor._vars2inds.pop(var)
+            newFactor._domains.pop(var)
+            newFactor._vars.pop(varInd)
+            newFactor._factor = newFactor._logSumExp(newFactor._factor, varInd)
+            newFactor._resetIndicies(varInd)
+            newFactor._assertCorrectDimensionality()
+            newFactor._assertOrdering()
+        return newFactor
+
+    # pass in a list of vars to be elimated and call eliminate on each in turn
+    def eliminate(self, vs):
+        if len(vs) == 0:
+            return self
+        else:
+            newFactor = self._eliminate(vs.pop())
+            return newFactor.eliminate(vs)
+
+    # return a marginalized log factor (NOT PROBABILITY) over specific vars
+    # this is similar to eliminate but takes the variable you want to keep
+    # instead of those you want to eliminate
+    def marginal(self, vs):
+        newFactor = self._copy()
+        for v in vs:
+            newFactor._assertVarExists(v)
+        allVars = set(newFactor._vars)
+        toEliminate = allVars - set(vs)
+        return newFactor.eliminate(toEliminate)
+
+    # exponentiate and then normalize this factor to return probabilities
+    def toProbs(self):
+        newFactor  = self._copy()
+        expFactor = np.exp(newFactor._factor)
+        newFactor._factor = expFactor / np.sum(expFactor)
+        return newFactor
+
