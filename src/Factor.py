@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+from scipy.misc import logsumexp
 
 class Factor:
     """
@@ -31,12 +32,6 @@ class Factor:
         return Factor(copy.copy(self._vars),
                       self._domains.values(),
                       np.copy(self._factor))
-
-    # sum variables in log space; make sure to pass in an ndarray (numpy)
-    # Also, summing is of the dimension dim
-    def _logSumExp(self, ndarray, dim):
-        m = np.max(ndarray)
-        return m + np.log(np.sum(np.exp(ndarray - m), dim))
 
     # swap dimensions SAFELY keeping all internal state correct (aka vars,
     # vars2inds, and factor itself
@@ -151,7 +146,7 @@ class Factor:
             varInd = newFactor._vars2inds.pop(var)
             newFactor._domains.pop(var)
             newFactor._vars.pop(varInd)
-            newFactor._factor = newFactor._logSumExp(newFactor._factor, varInd)
+            newFactor._factor = logsumexp(newFactor._factor, varInd)
             newFactor._resetIndicies(varInd)
             newFactor._assertCorrectDimensionality()
             newFactor._assertOrdering()
@@ -178,8 +173,13 @@ class Factor:
 
     # exponentiate and then normalize this factor to return probabilities
     def toProbs(self):
-        newFactor  = self._copy()
-        expFactor = np.exp(newFactor._factor)
-        newFactor._factor = expFactor / np.sum(expFactor)
-        return newFactor
+        newFactor = self._copy()
+        newFactor._factor = np.exp(newFactor._factor - newFactor.logZ())
+        return newFactor # NO LONGER IN LOG SPACE!
 
+    # calcualte the log of the partition function
+    def logZ(self):
+        toReturn = self._factor
+        for dim in range(self._factor.ndim):
+            toReturn = logsumexp(toReturn, 0)
+        return toReturn

@@ -19,10 +19,6 @@ class CliqueChain:
         sepset  = set(f1._vars).intersection(set(f2._vars))
         message = f1.eliminate(f1vars - sepset)
         return message
-#        for var in (f1vars - sepset):
-#            message = message.eliminate(var)
-#
-#        return message
 
     # returns a list of messages from C1 -> C2, C2 -> C3, etc.
     def forwardMessages(self):
@@ -39,16 +35,30 @@ class CliqueChain:
         self._cliques.reverse()
         return messages
 
+    # returns cluster beliefs
     def sumProduct(self):
         fwdMs = self.forwardMessages()
         bckMs = self.backwardMessages()
-        nMs   = len(fwdMs)
+        bckMs.reverse()  # now: C2 -> C1, C3 -> C2, ...
 
-        # don't compute beliefs at first or last node; those will be separate
-        beliefs = [ self._cliques[i+1].add(fwdMs[i]).add(bckMs[-(i+1)])
-                    for i in range(nMs-1) ]
+        beliefs = [ self._cliques[0] ] + [ b.add(msg)
+                                           for (b, msg)
+                                           in zip(self._cliques[1:], fwdMs) ]
 
-        beliefs.insert(0, self._cliques[0].add(bckMs[-1]))
-        beliefs.append(self._cliques[-1].add(fwdMs[-1]))
+        beliefs = [ b.add(msg)
+                    for (b, msg)
+                    in zip(beliefs, bckMs) ] + [beliefs[-1] ]
+
         return beliefs
+
+    # returns marginals over all variables in the model
+    def allMarginals(self):
+        beliefs = self.sumProduct()
+        vars2beliefs = {}
+        for b in beliefs:
+            for v in b._vars:
+                vars2beliefs[v] = b
+
+        return [ b.marginal([var]).toProbs()
+                 for (var,b) in vars2beliefs.items() ]
 
