@@ -36,13 +36,16 @@ class Factor:
     # swap dimensions SAFELY keeping all internal state correct (aka vars,
     # vars2inds, and factor itself
     def _safeDimSwap(self, frm, to):
+        if frm == to:
+            return
+
         frmVar, toVar = self._vars[frm], self._vars[to]
         frmDom, toDom = self._domains[frmVar], self._domains[toVar]
 
         self._vars[frm], self._vars[to] = self._vars[to], self._vars[frm]
         self._vars2inds.update({ frmVar : to, toVar : frm})
         self._domains.update({ frmVar : toDom, toVar : frmDom })
-        np.swapaxes(self._factor, frm, to)
+        self._factor = np.swapaxes(self._factor, frm, to)
         self._assertCorrectDimensionality()
         self._assertOrdering()
 
@@ -179,7 +182,8 @@ class Factor:
 
     # calcualte the log of the partition function
     def logZ(self):
-        toReturn = self._factor
-        for dim in range(self._factor.ndim):
-            toReturn = logsumexp(toReturn, 0)
-        return toReturn
+        #toReturn = self._copy()._factor
+        #for dim in range(self._factor.ndim):
+        #    toReturn = logsumexp(toReturn, 0)
+        #return toReturn
+        return logsumexp(self._factor)
