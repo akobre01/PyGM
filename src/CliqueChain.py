@@ -1,4 +1,4 @@
-from   Factor import Factor
+from   factor import Factor
 import numpy  as     np
 
 class CliqueChain:
