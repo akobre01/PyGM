@@ -9,6 +9,7 @@ class CliqueChain:
 
     # pass in a list of the cliques IN ORDER (two cliques at adjacent indices
     # must have an edge between them
+    # I'd like to have the union of the variables in cliques available
     def __init__(self, cliques):
         self._cliques = cliques
 
@@ -51,7 +52,8 @@ class CliqueChain:
 
         return beliefs
 
-    # returns marginals over all variables in the model
+    # returns marginals over all variables in the model as a dictionary
+    # whose keys are the variable names
     def allMarginals(self):
         beliefs = self.sumProduct()
         vars2beliefs = {}
@@ -59,6 +61,14 @@ class CliqueChain:
             for v in b._vars:
                 vars2beliefs[v] = b
 
-        return [ b.marginal([var]).toProbs()
-                 for (var,b) in vars2beliefs.items() ]
+        return dict([ (var, b.marginal([var]).toProbs())
+                      for (var,b) in vars2beliefs.items() ])
 
+    # pass in an assignment and return the corresponding log-likelihood
+    # the assignment should be a dictionary mapping each variable to a number
+    # in the domain of that variable
+    # this function might not be feasible if the chain is really long because
+    # you could end up with a huge tensor in memory
+    def logLikelihood(self, assignment):
+        joint = reduce(lambda f1,f2: f1.add(f2), self._cliques)
+        return joint.get(assignment) - joint.logZ()

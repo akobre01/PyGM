@@ -15,7 +15,7 @@ class Factor:
         assert self._vars2inds.has_key(v), "Factor doesn't touch " + str(v)
 
     def _assertTuple(self,t):
-        assert type(t) == 'tuple', "must pass in a tuple"
+        assert type(t) is tuple, "must pass in a tuple"
 
     def _assertValWithinDomain(self, var, val):
         self._assertVarExists(var)
@@ -93,10 +93,16 @@ class Factor:
         self._assertTuple(setting)
         self._factor[setting] = value
 
-    # setting is a tuple...perhaps think of converting to tuple if list
-    def get(self, setting):
-        self._assertTuple(setting)
-        return self._factor[setting]
+    # assignment is a dictionary that maps variables to indicies
+    # the dictionary MUST have an entry for each variable!
+    def get(self, assignment):
+        assert set(assignment.keys()) == set(self._vars), (
+            "Assignment/Joint variables must match!")
+        for var, val in assignment.iteritems():
+            self._assertValWithinDomain(var, val)
+
+        index   = [ assignment[v] for v in self._vars ]
+        return self._factor[tuple(index)]
 
     # visual representation
     def show(self):
