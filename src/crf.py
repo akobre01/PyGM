@@ -80,13 +80,6 @@ class CRF:
 
             actualMinusExpectedCounts += (counts[:,np.newaxis] * inst[i])
 
-#            actualMinusExpectedCounts[labels[var]] += (
-#                ( np.ones(self._numFeats) -
-#                  marginals[var]._factor[labels[var]] ) *
-#                inst[i] )
-
-#        print(actualMinusExpectedCounts.shape)
-#        print(np.sum(actualMinusExpectedCounts))
         return actualMinusExpectedCounts
 
     # MUST DOCUMENT BETTER!
@@ -103,18 +96,11 @@ class CRF:
                                    for (v, (t1,t2))
                                    in zip(varNames, transitions) ])
 
-#        updates = np.ones(len(relevantMargs)) - np.array(relevantMargs)
-#        for i,update in enumerate(updates):
-#            (v1,v2) = transitions[i]
-#            actualMinusExpectedCounts[v1][v2] += 1.0
-
         for i,v in enumerate(varNames[:-1]):
             (v1,v2) = transitions[i]
             actualMinusExpectedCounts[v1][v2] += 1.0
             actualMinusExpectedCounts -= pairMarg[v]._factor
 
-#        print(actualMinusExpectedCounts)
-#        print(np.sum(actualMinusExpectedCounts))
         return actualMinusExpectedCounts
 
     # jacobian of the objective; this returns a long vector of all params
