@@ -1,4 +1,3 @@
-from   factor import Factor
 import numpy  as     np
 
 class BinaryRBM:
@@ -31,7 +30,7 @@ class BinaryRBM:
         """
 
         z = np.exp(self._oparams + np.dot(self._pparams, hidden.T).T)
-        return z / (1 + z)
+        return z / (1.0 + z)
 
     def _pHiddenGivenObs(self, observed):
         """
@@ -40,7 +39,7 @@ class BinaryRBM:
         """
 
         z = np.exp(self._hparams + np.dot(self._pparams.T, observed.T).T)
-        return z / (1 + z)
+        return z / (1.0 + z)
 
     def _obsGivenHidden(self, hidden):
         """
@@ -49,8 +48,8 @@ class BinaryRBM:
         observations are binary and returns a binary vector
         """
 
-        probs   = np.atleast_2d(self._pObsGivenHidden(hidden))
-        samples = np.random.rand(np.size(probs,0), np.size(probs,1))
+        probs   = self._pObsGivenHidden(hidden)
+        samples = np.reshape(np.random.rand(np.size(probs)), probs.shape)
         return ((probs - samples) >= 0).astype(int)
 
     def _hiddenGivenObs(self, observed):
@@ -60,8 +59,9 @@ class BinaryRBM:
         variables are binary and returns a binary vector
         """
 
-        probs   = np.atleast_2d(self._pHiddenGivenObs(observed))
-        samples = np.random.rand(np.size(probs,0), np.size(probs,1))
+        probs   = self._pHiddenGivenObs(observed)
+        samples = np.reshape(np.random.rand(np.size(probs)), probs.shape)
+        print(probs)
         return ((probs - samples) >= 0).astype(int)
 
     def blockGibbs(self, s):
@@ -72,6 +72,8 @@ class BinaryRBM:
         This algorithm uses block gibbs sampling
         """
 
+
+
         # Initialize
         oSamples = [ self._obsGivenHidden(
                 np.random.randint(2, size=self._nhidden)) ]
@@ -80,6 +82,10 @@ class BinaryRBM:
         for i in range(s-1):
             oSamples.append(self._obsGivenHidden(hSamples[-1]))
             hSamples.append(self._hiddenGivenObs(oSamples[-1]))
+
+            print(-np.dot(np.dot(self._pparams,hSamples[-1]),oSamples[-1])
+                   - np.dot(self._hparams, hSamples[-1])
+                   - np.dot(self._oparams, oSamples[-1]))
 
         return oSamples, hSamples
 
