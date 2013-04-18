@@ -49,7 +49,7 @@ class BinaryRBM:
         observations are binary and returns a binary vector
         """
 
-        probs   = self._pObsGivenHidden(hidden)
+        probs   = np.atleast_2d(self._pObsGivenHidden(hidden))
         samples = np.random.rand(np.size(probs,0), np.size(probs,1))
         return ((probs - samples) >= 0).astype(int)
 
@@ -60,7 +60,7 @@ class BinaryRBM:
         variables are binary and returns a binary vector
         """
 
-        probs   = self._pHiddenGivenObs(observed)
+        probs   = np.atleast_2d(self._pHiddenGivenObs(observed))
         samples = np.random.rand(np.size(probs,0), np.size(probs,1))
         return ((probs - samples) >= 0).astype(int)
 
@@ -121,11 +121,6 @@ class BinaryRBM:
                 p_gHparams = np.sum(probs, 0)
                 p_gPparams = p_gPparams + np.dot(currBatch.T, probs)
 
-                # for i in range(np.size(currBatch,0)):
-                #     probs      = self._pHiddenGivenObs(currBatch[i])
-                #     p_gHparams = p_gHparams + probs
-                #     p_gPparams = p_gPparams + np.outer(currBatch[i], probs)
-
                 # Calculate the negative gradient pieces
                 n_gOparams = np.zeros(self._nobserved)
                 n_gHparams = np.zeros(self._nhidden)
@@ -138,15 +133,6 @@ class BinaryRBM:
                 probs      = self._pHiddenGivenObs(obsSamps)
                 n_gHparams = np.sum(probs, 0)
                 n_gPparams = np.dot(obsSamps.T, probs)
-
-                # for i in range(C):
-                #     obsSamps[i] = self._obsGivenHidden(hidSamps[i])
-                #     hidSamps[i] = self._hiddenGivenObs(obsSamps[i])
-
-                #     n_gOparams = n_gOparams + obsSamps[i]
-                #     probs      = self._pHiddenGivenObs(obsSamps[i])
-                #     n_gHparams = n_gHparams + probs
-                #     p_gPparams = p_gPparams + np.outer(obsSamps[i], probs)
 
                 # Take Gradient Steps
                 self._oparams = (self._oparams +
